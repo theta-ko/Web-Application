@@ -1,0 +1,26 @@
+# Core dependencies for serverless functions
+firebase-admin>=6.2.0
+flask>=2.3.3
+email-validator>=2.0.0
+python-dotenv>=1.0.0
+
+# Vercel specific dependencies
+vercel-python
+
+# Additional Flask extensions
+flask-login>=0.6.2
+flask-sqlalchemy>=3.0.5
+flask-wtf>=1.2.1
+
+# Production server
+gunicorn>=21.2.0
+
+# Optional database support
+psycopg2-binary>=2.9.9
+
+# For handling file uploads and images
+Pillow>=10.0.0
+
+# Enhanced HTTP capabilities
+requests>=2.31.0
+urllib3>=1.26.18

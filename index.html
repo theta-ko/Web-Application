@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smallie - Nigeria's Premier Stream Challenge</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    
+    <!-- Firebase Config -->
+    <script type="text/javascript">
+        // Make the Firebase credentials available to the client-side scripts
+        window.FIREBASE_API_KEY = "{{ firebase_api_key }}";
+        window.FIREBASE_PROJECT_ID = "{{ firebase_project_id }}";
+        window.FIREBASE_APP_ID = "{{ firebase_app_id }}";
+        
+        // Payment credentials
+        window.FLUTTERWAVE_PUBLIC_KEY = "{{ flutterwave_public_key }}";
+        window.SOLANA_PROJECT_ID = "{{ solana_project_id }}";
+    </script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    
+    <!-- Flutterwave SDK -->
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
+    
+    <!-- Solana Web3 SDK -->
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
+</head>
+<body>
+    <!-- Header/Navigation -->
+    <header class="header">
+        <div class="logo">Smallie</div>
+        <nav class="nav">
+            <ul>
+                <li><a href="#hero">Home</a></li>
+                <li><a href="#daily-task">Today's Task</a></li>
+                <li><a href="#contestants">Contestants</a></li>
+                <li><a href="#voting">Vote</a></li>
+                <li><a href="#overview">Overview</a></li>
+            </ul>
+        </nav>
+        <div class="auth-section">
+            <button id="login-button" class="btn btn-secondary">Login</button>
+            <div id="user-profile" class="user-profile" style="display: none;">
+                <img id="user-avatar" class="user-avatar" src="" alt="User Avatar">
+                <span id="user-name" class="user-name">User</span>
+                <button id="logout-button" class="btn-logout">Logout</button>
+            </div>
+        </div>
+        <div class="menu-toggle">
+            <i class="fas fa-bars"></i>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="hero" class="hero">
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+            <h1>Smallie</h1>
+            <h2>Nigeria's Premier Stream Challenge</h2>
+            <p>7 days. 10 contestants. One winner.</p>
+            <div class="hero-buttons">
+                <button class="btn btn-primary">Vote Now</button>
+                <button class="btn btn-secondary">Join as Contestant</button>
+            </div>
+            <div class="hero-info">
+                <span class="vote-price">Vote $0.50</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Daily Task Section -->
+    <section id="daily-task" class="daily-task">
+        <div class="container">
+            <h2>Day {{ current_day }} Task</h2>
+            <div class="task-box">
+                <div class="task-header">
+                    <h3>{{ daily_task.title }}</h3>
+                    <div class="task-timing">
+                        <span class="new-task-label">New Task at 9 AM WAT</span>
+                    </div>
+                </div>
+                <div class="task-description">
+                    <p>{{ daily_task.description }}</p>
+                </div>
+                <div class="task-timer">
+                    <div class="timer-label">Voting Closes in</div>
+                    <div class="countdown">
+                        <span id="hours">12</span>h
+                        <span id="minutes">30</span>m
+                        <span id="seconds">00</span>s
+                    </div>
+                </div>
+                <div class="task-progress">
+                    <div class="progress-bar" id="voting-progress"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contestants Section -->
+    <section id="contestants" class="contestants">
+        <div class="container">
+            <h2>Meet The Contestants</h2>
+            <div class="section-description">
+                <p>These 10 talented Nigerians are competing for the grand prize. Watch their daily livestreams and vote for your favorites!</p>
+                <button class="btn btn-apply">Join as Contestant</button>
+            </div>
+            <div class="contestants-grid">
+                {% for contestant in contestants %}
+                <div class="contestant-card" data-contestant-id="{{ contestant.id }}">
+                    <div class="contestant-img">
+                        <img src="{{ contestant.image_url }}" alt="{{ contestant.name }}">
+                        <div class="votes-badge">{{ contestant.votes }} votes</div>
+                        {% if contestant.eliminated %}
+                        <div class="eliminated-badge">Eliminated</div>
+                        {% endif %}
+                    </div>
+                    <div class="contestant-info">
+                        <h3>{{ contestant.name }}</h3>
+                        <p class="contestant-location">{{ contestant.age }} | {{ contestant.location }}</p>
+                        <p class="contestant-bio">{{ contestant.bio | truncate(50) }}</p>
+                        <div class="contestant-actions">
+                            <a href="{{ contestant.stream_url|default('#') }}" target="_blank" class="btn btn-watch {% if not contestant.stream_url %}disabled{% endif %}">
+                                <i class="fas fa-play-circle"></i> Watch Stream
+                            </a>
+                            <button class="btn btn-add-stream hidden" data-id="{{ contestant.id }}">
+                                <i class="fas fa-link"></i> Add Stream
+                            </button>
+                            <button class="btn btn-vote" data-id="{{ contestant.id }}">
+                                <i class="fas fa-heart"></i> Vote
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <!-- Voting Section -->
+    <section id="voting" class="voting">
+        <div class="container">
+            <h2>Cast Your Vote</h2>
+            
+            <!-- Prize Fund Display -->
+            <div class="prize-fund">
+                <div class="prize-fund-label">Current Prize Pool:</div>
+                <div class="prize-fund-amount"><span id="prize-fund-display">₦0</span></div>
+                <div class="prize-fund-note">90% of votes go to the prize pool</div>
+            </div>
+            
+            <!-- Red Voting Tiles -->
+            <div class="vote-tiles-section">
+                <h3>Quick Vote for Top Contestants</h3>
+                <div id="vote-tiles" class="vote-tiles">
+                    <!-- Tiles will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Voting Form and Leaderboard -->
+            <div class="voting-area">
+                <form id="voting-form" class="voting-form">
+                    <h3>Custom Vote</h3>
+                    <div class="form-group">
+                        <label for="contestant-select">Select Contestant</label>
+                        <select id="contestant-select" name="contestant" required>
+                            <option value="" disabled selected>Choose a contestant</option>
+                            {% for contestant in contestants %}
+                            {% if not contestant.eliminated %}
+                            <option value="{{ contestant.id }}">{{ contestant.name }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="vote-count">Number of Votes ($0.50 each)</label>
+                        <div class="vote-counter">
+                            <button type="button" id="decrease-votes" class="counter-btn">-</button>
+                            <input type="number" id="vote-count" name="votes" min="1" value="1">
+                            <button type="button" id="increase-votes" class="counter-btn">+</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Your Email</label>
+                        <input type="email" id="email" name="email" placeholder="example@email.com">
+                        <p id="email-required-notice" class="form-hint" style="display: none;">Email required for 5+ votes</p>
+                    </div>
+                    <div class="vote-total">
+                        <p>Total: $<span id="vote-price">0.50</span> (₦<span id="vote-price-ngn">240</span>)</p>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Submit Vote</button>
+                </form>
+                
+                <div class="voting-leaderboard">
+                    <h3>Votes Leaderboard</h3>
+                    <div id="votes-leaderboard" class="leaderboard">
+                        <!-- Leaderboard will be populated by JavaScript -->
+                    </div>
+                    <div class="voting-info">
+                        <h4>How Voting Works</h4>
+                        <ul>
+                            <li><i class="fas fa-check-circle"></i> New task daily at 9 AM WAT</li>
+                            <li><i class="fas fa-check-circle"></i> Each vote costs $0.50</li>
+                            <li><i class="fas fa-check-circle"></i> Voting opens at 9 AM, closes at 9 PM WAT</li>
+                            <li><i class="fas fa-check-circle"></i> Lowest vote-getter eliminated daily</li>
+                            <li><i class="fas fa-check-circle"></i> Each contestant gets 9% of their votes</li>
+                            <li><i class="fas fa-check-circle"></i> 90% of votes go to final prize pool</li>
+                            <li><i class="fas fa-check-circle"></i> Winner gets 90% of total prize pool</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Overview Section -->
+    <section id="overview" class="overview">
+        <div class="container">
+            <h2>Competition Overview</h2>
+            <div class="accordion">
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <h3>What is Smallie?</h3>
+                        <i class="fas fa-plus"></i>
+                    </div>
+                    <div class="accordion-content">
+                        <p>Smallie is Nigeria's premier 7-day livestreaming competition that brings together 10 talented individuals from across the country. Contestants showcase their creativity and skills through daily challenges, competing for audience votes and a grand prize.</p>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <h3>How It Works</h3>
+                        <i class="fas fa-plus"></i>
+                    </div>
+                    <div class="accordion-content">
+                        <p>Each day for 7 days, contestants are given a task to complete during their livestream. Viewers can watch the streams and vote for their favorite performances. Daily winners receive bonus points, and at the end of the week, the contestant with the most votes is crowned the Smallie Champion.</p>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <h3>Prize Pool</h3>
+                        <i class="fas fa-plus"></i>
+                    </div>
+                    <div class="accordion-content">
+                        <p>The prize pool grows with each vote cast. For each $0.50 vote, 90% goes to the prize fund while 10% goes to the platform (1% for operations, 9% for daily payouts).</p>
+                        
+                        <div class="payout-details">
+                            <h4 class="gold-text">Daily Payouts (Days 1-6):</h4>
+                            <ul>
+                                <li>Each contestant receives 9% of their daily vote value</li>
+                                <li>Platform takes 1% for operations</li>
+                                <li>Remaining 90% pools for the final prize</li>
+                                <li>Example: ₦10,000 in Day 1 votes = ₦900 to contestant, ₦100 to platform, ₦9,000 to prize pool</li>
+                            </ul>
+                            
+                            <h4 class="gold-text">Final Prize (Day 7):</h4>
+                            <ul>
+                                <li>Winner receives 90% of the total accumulated prize pool</li>
+                                <li>Platform takes final 10% for operations</li>
+                                <li>Example: ₦50,000 prize pool = ₦45,000 to winner, ₦5,000 to platform</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <h3>Rules & Guidelines</h3>
+                        <i class="fas fa-plus"></i>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="rules-grid">
+                            <div class="rule-card">
+                                <div class="rule-icon"><i class="fas fa-users"></i></div>
+                                <div class="rule-content">
+                                    <h4>Contestant Requirements</h4>
+                                    <ul>
+                                        <li>Must be 18 years or older</li>
+                                        <li>Must be a Nigerian citizen or resident</li>
+                                        <li>Must have reliable internet access for daily streams</li>
+                                        <li>Must complete all daily tasks</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="rule-card">
+                                <div class="rule-icon"><i class="fas fa-tasks"></i></div>
+                                <div class="rule-content">
+                                    <h4>Task Completion</h4>
+                                    <ul>
+                                        <li>New tasks are announced daily at 9 AM WAT</li>
+                                        <li>Contestants must livestream their task completion</li>
+                                        <li>Minimum stream length: 1 hour</li>
+                                        <li>Tasks must be completed by 8 PM WAT</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="rule-card">
+                                <div class="rule-icon"><i class="fas fa-vote-yea"></i></div>
+                                <div class="rule-content">
+                                    <h4>Voting Rules</h4>
+                                    <ul>
+                                        <li>Voting opens at 9 AM WAT after task announcement</li>
+                                        <li>Voting closes at 9 PM WAT</li>
+                                        <li>Each vote costs $0.50 (₦240)</li>
+                                        <li>No limit on votes per person</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="rule-card">
+                                <div class="rule-icon"><i class="fas fa-trophy"></i></div>
+                                <div class="rule-content">
+                                    <h4>Elimination Process</h4>
+                                    <ul>
+                                        <li>Each day at 9 PM WAT, the contestant with the lowest votes is eliminated</li>
+                                        <li>One contestant is eliminated daily after voting closes</li>
+                                        <li>Winner is determined on final day (Day 7)</li>
+                                        <li>Winner takes home 90% of the total prize pool</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <h3>Schedule (April 15-21, 2025)</h3>
+                        <i class="fas fa-plus"></i>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="schedule-timeline">
+                            <div class="timeline-item">
+                                <div class="timeline-date">April 15</div>
+                                <div class="timeline-content">
+                                    <h4>Day 1: Naija Throwback Dance Challenge</h4>
+                                    <p>Perform a 60-second dance to a classic Nigerian hit (e.g., P-Square, Fela).</p>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-date">April 16</div>
+                                <div class="timeline-content">
+                                    <h4>Day 2: Jollof Wars: Cook-Off Edition</h4>
+                                    <p>Cook jollof rice with ₦500 in 10 minutes, taste and hype it.</p>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-date">April 17</div>
+                                <div class="timeline-content">
+                                    <h4>Day 3: Nollywood Skit Showdown</h4>
+                                    <p>Act a 2-minute Nollywood-style skit (e.g., Cheating Husband).</p>
+                                    <div class="timeline-note">First elimination after 9 PM</div>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-date">April 18</div>
+                                <div class="timeline-content">
+                                    <h4>Day 4: Afrobeat Freestyle Face-Off</h4>
+                                    <p>Freestyle a 1-minute rap/song on a trending beat (e.g., Burna Boy).</p>
+                                    <div class="timeline-note">Second elimination after 9 PM</div>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-date">April 19</div>
+                                <div class="timeline-content">
+                                    <h4>Day 5: Owambe Fashion Flex</h4>
+                                    <p>Style an owambe outfit from home, model in a 90-second catwalk.</p>
+                                    <div class="timeline-note">Third elimination after 9 PM</div>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-date">April 20</div>
+                                <div class="timeline-content">
+                                    <h4>Day 6: Pidgin Proverbs Remix</h4>
+                                    <p>Turn a proverb (e.g., Monkey no fine...) into a 60-second pidgin skit/song.</p>
+                                    <div class="timeline-note">Fourth elimination after 9 PM</div>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-date">April 21</div>
+                                <div class="timeline-content">
+                                    <h4>Day 7: Lagos Hustle Pitch</h4>
+                                    <p>Pitch yourself as Smallie winner in a 3-minute video.</p>
+                                    <div class="timeline-note">Winner announced at 10 PM</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <h3>Frequently Asked Questions</h3>
+                        <i class="fas fa-plus"></i>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="faq-list">
+                            <div class="faq-item">
+                                <div class="faq-question">How can I participate as a contestant?</div>
+                                <div class="faq-answer">
+                                    <p>Click the "Apply Now" button on the homepage and fill out the application form. Our team will review your application and notify you if you're selected.</p>
+                                </div>
+                            </div>
+                            <div class="faq-item">
+                                <div class="faq-question">How does the voting system work?</div>
+                                <div class="faq-answer">
+                                    <p>Each vote costs $0.50 (approximately ₦240). You can vote as many times as you want for your favorite contestants. 90% of voting revenue goes to the prize pool, with the remaining 10% covering platform operational costs.</p>
+                                </div>
+                            </div>
+                            <div class="faq-item">
+                                <div class="faq-question">What is the prize structure?</div>
+                                <div class="faq-answer">
+                                    <p>Daily (Days 1-6): Each contestant receives 9% of their own votes value, 1% goes to platform operations, and 90% of all votes accumulate in the prize pool. Final prize (Day 7): The winner takes home 90% of the total prize pool, with 10% going to platform operations.</p>
+                                </div>
+                            </div>
+                            <div class="faq-item">
+                                <div class="faq-question">How are contestants eliminated?</div>
+                                <div class="faq-answer">
+                                    <p>Each day at 9 PM WAT when voting closes, the contestant with the lowest vote count is eliminated from the competition. This happens daily until only one winner remains on Day 7.</p>
+                                </div>
+                            </div>
+                            <div class="faq-item">
+                                <div class="faq-question">Can I vote using cryptocurrency?</div>
+                                <div class="faq-answer">
+                                    <p>Yes! We accept payments through Flutterwave (card/bank transfers) and Solana (cryptocurrency). Both options are secure and process votes instantly.</p>
+                                </div>
+                            </div>
+                            <div class="faq-item">
+                                <div class="faq-question">Where can I watch contestant livestreams?</div>
+                                <div class="faq-answer">
+                                    <p>Each contestant has a stream link on their profile card in the Contestants section. Click on "Watch Stream" to view their live performances and task completions.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Audience Section -->
+    <section class="audience">
+        <div class="container">
+            <div class="audience-content">
+                <h2>Join The Audience</h2>
+                <p>Be part of the excitement! Watch livestreams, interact with contestants, and vote for your favorites.</p>
+                <div class="audience-stats">
+                    <div class="stat">
+                        <span class="stat-number">50K+</span>
+                        <span class="stat-label">Daily Viewers</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">2M+</span>
+                        <span class="stat-label">Votes Cast</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">7</span>
+                        <span class="stat-label">Days of Fun</span>
+                    </div>
+                </div>
+                <button class="btn btn-secondary">Watch Live</button>
+            </div>
+            <div class="audience-image">
+                <img src="https://images.unsplash.com/photo-1634937734976-7b0432527d5d" alt="Nigerian audience">
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer Section -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-about">
+                    <h3>About Smallie</h3>
+                    <p>Nigeria's premier livestreaming competition showcasing the best talents across the country in a 7-day challenge. Founded in 2023 to promote Nigerian creativity on global platforms.</p>
+                </div>
+                <div class="footer-links">
+                    <h3>Quick Links</h3>
+                    <ul>
+                        <li><a href="#hero">Home</a></li>
+                        <li><a href="#contestants">Contestants</a></li>
+                        <li><a href="#voting">Vote</a></li>
+                        <li><a href="#overview">Rules</a></li>
+                        <li><a href="#">Past Winners</a></li>
+                        <li><a href="/admin">Admin</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h3>Contact Us</h3>
+                    <ul>
+                        <li><i class="fas fa-envelope"></i> info@smallie.com</li>
+                        <li><i class="fas fa-phone"></i> +234 800 SMALLIE</li>
+                        <li><i class="fas fa-map-marker-alt"></i> Lagos, Nigeria</li>
+                    </ul>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-facebook"></i></a>
+                        <a href="#"><i class="fab fa-tiktok"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2023 Smallie - Nigeria's Premier Stream Challenge. All rights reserved.</p>
+                <ul class="footer-legal">
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms of Service</a></li>
+                </ul>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Modal for voting confirmation -->
+    <div id="vote-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Confirm Your Vote</h2>
+            <p>You are about to cast <span id="modal-vote-count">1</span> vote(s) for <span id="modal-contestant-name">Contestant</span>.</p>
+            <p>Total: $<span id="modal-vote-total">0.50</span> (₦<span id="modal-vote-total-ngn">240</span>)</p>
+            
+            <div class="payment-options">
+                <h3>Choose Payment Method</h3>
+                <div class="payment-buttons">
+                    <button id="pay-flutterwave" class="btn btn-payment flutterwave-btn">
+                        <span class="payment-icon"><i class="fas fa-credit-card"></i></span>
+                        <span class="payment-text">Pay with Card/Bank</span>
+                    </button>
+                    <button id="pay-solana" class="btn btn-payment solana-btn">
+                        <span class="payment-icon"><i class="fas fa-wallet"></i></span>
+                        <span class="payment-text">Pay with Crypto</span>
+                    </button>
+                </div>
+                <p class="payment-note">All payments are secure and processed instantly</p>
+            </div>
+            
+            <div class="modal-buttons">
+                <button id="cancel-vote" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for vote success -->
+    <div id="success-modal" class="modal">
+        <div class="modal-content success-content">
+            <span class="close">&times;</span>
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h2>Thank You!</h2>
+            <p>Your vote has been successfully recorded.</p>
+            <p>Share your support:</p>
+            <div class="social-share">
+                <a href="#" class="btn-share twitter"><i class="fab fa-twitter"></i> Twitter</a>
+                <a href="#" class="btn-share facebook"><i class="fab fa-facebook"></i> Facebook</a>
+                <a href="#" class="btn-share whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for contestant application -->
+    <div id="application-modal" class="modal">
+        <div class="modal-content application-content">
+            <span class="close">&times;</span>
+            <h2>Apply to be a Contestant</h2>
+            <form id="application-form">
+                <div class="form-group">
+                    <label for="app-name">Full Name</label>
+                    <input type="text" id="app-name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="app-email">Email</label>
+                    <input type="email" id="app-email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="app-phone">Phone Number</label>
+                    <input type="tel" id="app-phone" name="phone" required>
+                </div>
+                <div class="form-group">
+                    <label for="app-location">Location in Nigeria</label>
+                    <input type="text" id="app-location" name="location" required>
+                </div>
+                <div class="form-group">
+                    <label for="app-talent">What is your primary talent?</label>
+                    <input type="text" id="app-talent" name="talent" required>
+                </div>
+                <div class="form-group">
+                    <label for="app-why">Why do you want to join Smallie? (100-200 words)</label>
+                    <textarea id="app-why" name="why" rows="4" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="app-social">X (Twitter) Handle</label>
+                    <input type="text" id="app-social" name="social" placeholder="@username">
+                </div>
+                <div class="form-group">
+                    <label for="app-experience">Previous streaming experience (if any)</label>
+                    <textarea id="app-experience" name="experience" rows="2"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Submit Application</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Stream Link Modal -->
+    <div id="stream-link-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add Stream Link</h2>
+            <p>Add a streaming link for this contestant. This will allow viewers to watch their performance.</p>
+            <form id="stream-link-form">
+                <div class="form-group">
+                    <label for="stream-link-input">Stream URL</label>
+                    <input type="url" id="stream-link-input" name="stream_url" placeholder="https://youtu.be/example" required>
+                    <p class="form-hint">Enter the full URL to the contestant's stream (YouTube, Twitch, etc.)</p>
+                </div>
+                <div class="modal-buttons">
+                    <button type="submit" id="stream-link-submit" class="btn btn-primary">Submit</button>
+                    <button type="button" class="btn btn-secondary close-modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase and Payment Configurations -->
+    <script>
+        // Make Firebase configuration available to the client-side code
+        window.FIREBASE_API_KEY = '{{ firebase_api_key }}';
+        window.FIREBASE_PROJECT_ID = '{{ firebase_project_id }}';
+        window.FIREBASE_APP_ID = '{{ firebase_app_id }}';
+        
+        // Make payment configurations available to the client-side code
+        window.FLUTTERWAVE_PUBLIC_KEY = '{{ flutterwave_public_key }}';
+        window.SOLANA_PROJECT_ID = '{{ solana_project_id }}';
+    </script>
+    
+    <!-- External Payment SDKs -->
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    
+    <!-- Non-module scripts -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/timer.js') }}"></script>
+    
+    <!-- Firebase Client Integration -->
+    <script type="module" src="{{ url_for('static', filename='js/firebase-client.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/contestants.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/signup.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/voting.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/payments.js') }}"></script>
+</body>
+</html>
