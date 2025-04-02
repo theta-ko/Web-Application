@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "functions": {
+    "api/index.py": {
+      "memory": 1024,
+      "maxDuration": 30,
+      "includeFiles": "**/*.py"
+    },
+    "api/home.py": {
+      "memory": 1024,
+      "maxDuration": 30,
+      "includeFiles": "**/*.py"
+    }
+  },
+  "routes": [
+    { "src": "/static/(.*)", "dest": "/static/$1" },
+    { "src": "/favicon.ico", "dest": "/static/favicon.ico" },
+    { "src": "/api/(.*)", "dest": "/api/index.py" },
+    { "src": "/", "dest": "/api/home.py" },
+    { "src": "/(.*)", "dest": "/api/index.py" }
+  ],
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "VERCEL_DEPLOYMENT": "1",
+    "PYTHONPATH": ".",
+    "MAX_CONTENT_LENGTH": "16777216"
+  },
+  "build": {
+    "env": {
+      "PYTHONUNBUFFERED": "1"
+    }
+  }
+}

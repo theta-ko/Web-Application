@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Smallie</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    
+    <!-- Firebase Config -->
+    <script type="text/javascript">
+        // Make the Firebase credentials available to the client-side scripts
+        window.FIREBASE_API_KEY = "{{ firebase_api_key }}";
+        window.FIREBASE_PROJECT_ID = "{{ firebase_project_id }}";
+        window.FIREBASE_APP_ID = "{{ firebase_app_id }}";
+        
+        // Payment credentials
+        window.FLUTTERWAVE_PUBLIC_KEY = "{{ flutterwave_public_key }}";
+        window.SOLANA_PROJECT_ID = "{{ solana_project_id }}";
+    </script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    
+    <!-- Flutterwave SDK -->
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
+    
+    <!-- Solana Web3 SDK -->
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
+    
+    <style>
+        :root {
+            --red: #D32F2F;
+            --white: #FFFFFF;
+            --black: #000000;
+            --gold: #FFD700;
+            --font-heading: 'Playfair Display', serif;
+            --font-body: 'Lato', sans-serif;
+            --transition: all 0.3s ease;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        html {
+            font-size: 62.5%;
+            scroll-behavior: smooth;
+        }
+        
+        body {
+            font-family: var(--font-body);
+            font-size: 1.6rem;
+            line-height: 1.6;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            color: white;
+        }
+        
+        .loading-spinner {
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-top: 5px solid var(--red);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="container">
+            <div class="admin-header-content">
+                <div>
+                    <h1>Smallie <span class="admin-badge">Admin</span></h1>
+                </div>
+                <div class="admin-user">
+                    <div class="admin-info">
+                        <div class="admin-name">Admin</div>
+                        <button id="admin-logout" class="btn-logout">Logout</button>
+                    </div>
+                    <a href="/" class="btn-back" target="_blank"><i class="fas fa-external-link-alt"></i> View Site</a>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <main class="admin-dashboard">
+        <div class="container">
+            <nav class="dashboard-nav">
+                <div class="nav-item active" data-section="contestants">
+                    <i class="fas fa-users"></i>
+                    <span>Contestants</span>
+                </div>
+                <div class="nav-item" data-section="tasks">
+                    <i class="fas fa-tasks"></i>
+                    <span>Tasks</span>
+                </div>
+                <div class="nav-item" data-section="payouts">
+                    <i class="fas fa-money-bill-wave"></i>
+                    <span>Payouts</span>
+                </div>
+                <div class="nav-item" data-section="stats">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Stats</span>
+                </div>
+            </nav>
+            
+            <!-- Contestants Section -->
+            <section id="contestants-section" class="content-section active">
+                <div class="section-header">
+                    <h2>Contestants Management</h2>
+                    <div class="section-tabs">
+                        <button class="tab-btn active" data-tab="approved">Active</button>
+                        <button class="tab-btn" data-tab="pending">Applications</button>
+                        <button class="tab-btn" data-tab="eliminated">Eliminated</button>
+                    </div>
+                </div>
+                
+                <!-- Active Contestants Tab -->
+                <div id="approved-tab" class="tab-content active">
+                    <div id="active-contestants-grid" class="admin-grid">
+                        <div class="loading">Loading contestants...</div>
+                    </div>
+                </div>
+                
+                <!-- Pending Applications Tab -->
+                <div id="pending-tab" class="tab-content">
+                    <div id="pending-applications-grid" class="admin-grid">
+                        <div class="loading">Loading applications...</div>
+                    </div>
+                </div>
+                
+                <!-- Eliminated Contestants Tab -->
+                <div id="eliminated-tab" class="tab-content">
+                    <div id="eliminated-contestants-grid" class="admin-grid">
+                        <div class="loading">Loading eliminated contestants...</div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Tasks Section -->
+            <section id="tasks-section" class="content-section">
+                <div class="section-header">
+                    <h2>Daily Tasks</h2>
+                    <div class="section-actions">
+                        <button id="create-task-btn" class="btn btn-primary">Create New Task</button>
+                    </div>
+                </div>
+                
+                <div class="tasks-calendar">
+                    <div class="calendar-header">
+                        <div class="calendar-day">Day</div>
+                        <div class="calendar-date">Date</div>
+                        <div class="calendar-task">Task</div>
+                        <div class="calendar-status">Status</div>
+                        <div class="calendar-actions">Actions</div>
+                    </div>
+                    <div id="tasks-container">
+                        <div class="loading">Loading tasks...</div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Payouts Section -->
+            <section id="payouts-section" class="content-section">
+                <div class="section-header">
+                    <h2>Payouts Management</h2>
+                    <div class="section-tabs">
+                        <button class="tab-btn active" data-tab="daily">Daily Payouts</button>
+                        <button class="tab-btn" data-tab="final">Final Prize</button>
+                    </div>
+                </div>
+                
+                <!-- Daily Payouts Tab -->
+                <div id="daily-tab" class="tab-content active">
+                    <div class="payout-summary">
+                        <div>
+                            <h3>Today's Summary</h3>
+                            <p>Daily payout represents 9% of today's voting revenue</p>
+                        </div>
+                        <button id="process-daily-payout" class="btn btn-primary">Process Daily Payout</button>
+                    </div>
+                    
+                    <div class="payout-stats">
+                        <div class="payout-stat">
+                            <div class="stat-label">Today's Votes:</div>
+                            <div id="today-votes" class="stat-value">0</div>
+                        </div>
+                        <div class="payout-stat">
+                            <div class="stat-label">Today's Revenue:</div>
+                            <div id="today-revenue" class="stat-value">$0.00</div>
+                        </div>
+                        <div class="payout-stat">
+                            <div class="stat-label">Daily Payout (9%):</div>
+                            <div id="daily-payout" class="stat-value">$0.00</div>
+                        </div>
+                    </div>
+                    
+                    <h3>Today's Winners</h3>
+                    <div id="daily-winners-grid" class="payout-grid">
+                        <div class="loading">Calculating daily winners...</div>
+                    </div>
+                </div>
+                
+                <!-- Final Prize Tab -->
+                <div id="final-tab" class="tab-content">
+                    <div class="payout-summary">
+                        <div>
+                            <h3>Final Prize Pool</h3>
+                            <p>Final prize represents 90% of total voting revenue</p>
+                        </div>
+                        <button id="process-final-payout" class="btn btn-primary">Process Final Payout</button>
+                    </div>
+                    
+                    <div class="payout-stats">
+                        <div class="payout-stat">
+                            <div class="stat-label">Total Votes:</div>
+                            <div id="total-votes" class="stat-value">0</div>
+                        </div>
+                        <div class="payout-stat">
+                            <div class="stat-label">Total Revenue:</div>
+                            <div id="total-revenue" class="stat-value">$0.00</div>
+                        </div>
+                        <div class="payout-stat">
+                            <div class="stat-label">Final Prize Pool (90%):</div>
+                            <div id="final-prize-pool" class="stat-value">$0.00</div>
+                        </div>
+                    </div>
+                    
+                    <h3>Final Rankings</h3>
+                    <div id="final-rankings-grid" class="payout-grid">
+                        <div class="loading">Calculating final rankings...</div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Stats Section -->
+            <section id="stats-section" class="content-section">
+                <div class="section-header">
+                    <h2>Statistics Dashboard</h2>
+                </div>
+                
+                <div class="stats-overview">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-vote-yea"></i>
+                        </div>
+                        <div>
+                            <div class="stat-label">Total Votes</div>
+                            <div id="stats-total-votes" class="stat-value">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        <div>
+                            <div class="stat-label">Total Revenue</div>
+                            <div id="stats-total-revenue" class="stat-value">$0.00</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <div>
+                            <div class="stat-label">Prize Pool</div>
+                            <div id="stats-prize-pool" class="stat-value">$0.00</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div>
+                            <div class="stat-label">Active Contestants</div>
+                            <div id="stats-contestants" class="stat-value">0</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stats-charts">
+                    <div class="stats-chart-container">
+                        <h3>Votes Over Time</h3>
+                        <div class="chart-container">
+                            <canvas id="votes-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="stats-chart-container">
+                        <h3>Contestant Votes</h3>
+                        <div class="chart-container">
+                            <canvas id="contestant-votes-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stats-table-container">
+                    <h3>Daily Performance</h3>
+                    <div class="stats-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Day</th>
+                                    <th>Date</th>
+                                    <th>Votes</th>
+                                    <th>Revenue</th>
+                                    <th>Top Contestant</th>
+                                    <th>Payout Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stats-table-body">
+                                <tr>
+                                    <td colspan="6" class="loading">Loading statistics...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+    
+    <!-- Admin Login Modal -->
+    <div id="login-modal" class="modal">
+        <div class="modal-content">
+            <h2>Admin Login</h2>
+            <form id="admin-login-form">
+                <div class="form-group">
+                    <label for="admin-password">Password</label>
+                    <input type="password" id="admin-password" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Login</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Task Modal -->
+    <div id="task-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="task-modal-title">Create New Task</h2>
+            <form id="task-form">
+                <input type="hidden" id="task-id">
+                <div class="form-group">
+                    <label for="task-day">Day (1-7)</label>
+                    <input type="number" id="task-day" min="1" max="7" required>
+                </div>
+                <div class="form-group">
+                    <label for="task-title">Task Title</label>
+                    <input type="text" id="task-title" required>
+                </div>
+                <div class="form-group">
+                    <label for="task-description">Task Description</label>
+                    <textarea id="task-description" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="task-status">Status</label>
+                    <select id="task-status" required>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="active">Active</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button type="submit" class="btn btn-primary">Save Task</button>
+                    <button type="button" class="btn btn-secondary close-modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Contestant/Application Modal -->
+    <div id="contestant-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="contestant-modal-title">Contestant Details</h2>
+            <div id="contestant-details">
+                <!-- Contestant details will be loaded here -->
+            </div>
+            <div class="modal-buttons">
+                <button id="approve-contestant" class="btn btn-primary">Approve Application</button>
+                <button id="reject-contestant" class="btn btn-secondary">Reject Application</button>
+                <button id="eliminate-contestant" class="btn btn-warning">Eliminate Contestant</button>
+                <button class="btn btn-secondary close-modal">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Payout Modal -->
+    <div id="payout-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="payout-modal-title">Process Payout</h2>
+            <div id="payout-details">
+                <!-- Payout details will be loaded here -->
+            </div>
+            <div class="payment-options">
+                <h3>Choose Payment Method</h3>
+                <div class="payment-buttons">
+                    <button id="pay-flutterwave-admin" class="btn btn-payment flutterwave-btn">
+                        <span class="payment-icon"><i class="fas fa-credit-card"></i></span>
+                        <span class="payment-text">Pay with Flutterwave</span>
+                    </button>
+                    <button id="pay-solana-admin" class="btn btn-payment solana-btn">
+                        <span class="payment-icon"><i class="fas fa-wallet"></i></span>
+                        <span class="payment-text">Pay with Solana</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary close-modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Firebase and Payment Configurations -->
+    <script type="module">
+        // Make Firebase configuration available to the client-side code
+        window.FIREBASE_API_KEY = '{{ firebase_api_key }}';
+        window.FIREBASE_PROJECT_ID = '{{ firebase_project_id }}';
+        window.FIREBASE_APP_ID = '{{ firebase_app_id }}';
+        
+        // Make payment configurations available to the client-side code
+        window.FLUTTERWAVE_PUBLIC_KEY = '{{ flutterwave_public_key }}';
+        window.SOLANA_PROJECT_ID = '{{ solana_project_id }}';
+    </script>
+    
+    <!-- Payment SDKs -->
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    
+    <!-- Admin Dashboard JavaScript -->
+    <script type="module" src="{{ url_for('static', filename='js/admin.js') }}"></script>
+</body>
+</html>
